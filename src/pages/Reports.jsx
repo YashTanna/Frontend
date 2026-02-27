@@ -37,16 +37,21 @@ export default function Reports() {
 
     const axisTick = { fill: '#94a3b8', fontSize: 11, fontFamily: 'JetBrains Mono' };
 
+    // Handle both totalTests and totalTest field names from backend
+    const totalCount = data ? (data.totalTests ?? data.totalTest ?? 0) : 0;
+    const passCount = data ? (data.totalPass ?? data.totalPassed ?? 0) : 0;
+    const failCount = data ? (data.totalFail ?? data.totalFailed ?? 0) : 0;
+
     const pieData = data ? [
-        { name: 'PASS', value: data.totalPass, color: '#16a34a' },
-        { name: 'FAIL', value: data.totalFail, color: '#dc2626' },
+        { name: 'PASS', value: passCount, color: '#16a34a' },
+        { name: 'FAIL', value: failCount, color: '#dc2626' },
     ] : [];
 
     const stats = data ? [
-        { label: 'Total Tests', value: data.totalTests, color: 'var(--color-neutral-800)' },
-        { label: 'Passed', value: data.totalPass, color: 'var(--color-pass-text)' },
-        { label: 'Failed', value: data.totalFail, color: 'var(--color-fail-text)' },
-        { label: 'Pass Rate', value: data.totalTests > 0 ? `${((data.totalPass / data.totalTests) * 100).toFixed(1)}%` : '—', color: 'var(--color-accent-600)' },
+        { label: 'Total Tests', value: totalCount, color: 'var(--color-neutral-800)' },
+        { label: 'Passed', value: passCount, color: 'var(--color-pass-text)' },
+        { label: 'Failed', value: failCount, color: 'var(--color-fail-text)' },
+        { label: 'Pass Rate', value: totalCount > 0 ? `${((passCount / totalCount) * 100).toFixed(1)}%` : '—', color: 'var(--color-accent-600)' },
     ] : [];
 
     return (

@@ -67,7 +67,7 @@ export default function TestHistory() {
             borderBottom: '1px solid var(--color-neutral-200)',
         },
         tr: { borderBottom: '1px solid var(--color-neutral-100)', cursor: 'pointer', transition: 'background 0.15s' },
-        td: { padding: '0.875rem 0.75rem 0.875rem 0', verticalAlign: 'middle' },
+        td: { padding: '0.875rem 1.5rem 0.875rem 0', verticalAlign: 'middle' },
     };
 
     return (
@@ -107,13 +107,13 @@ export default function TestHistory() {
             </div>
 
             {/* Table */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card" style={{ padding: '0 1.25rem', overflow: 'hidden' }}>
                 <div style={{ overflowX: 'auto' }}>
                     <table style={s.table}>
                         <thead>
                             <tr>
-                                {['S/N', 'Test ID', 'Device', 'Result', 'Date', ''].map(h => (
-                                    <th key={h} style={{ ...s.th, padding: '1rem 0.75rem 0.75rem' }}>{h}</th>
+                                {['S/N', 'Test ID', 'Device', 'Result', 'Date', ''].map((h, i) => (
+                                    <th key={h} style={{ ...s.th, padding: `1rem ${i === 5 ? '0' : '1.5rem'} 0.75rem 0` }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -122,7 +122,7 @@ export default function TestHistory() {
                             {loading && tests.length === 0 && [1, 2, 3, 4, 5].map(i => (
                                 <tr key={i}>
                                     {[1, 2, 3, 4, 5, 6].map(j => (
-                                        <td key={j} style={{ ...s.td, padding: '0.875rem 0.75rem' }}>
+                                        <td key={j} style={{ ...s.td }}>
                                             <div style={{ height: '14px', background: 'var(--color-neutral-100)', borderRadius: '4px', width: j === 6 ? '40px' : '80px', animation: 'pulse 1.5s infinite' }} />
                                         </td>
                                     ))}
@@ -161,8 +161,13 @@ export default function TestHistory() {
                                     </td>
                                     {/* Device */}
                                     <td style={s.td}>
-                                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-neutral-700)' }}>{t.deviceName || t.deviceId}</p>
-                                        <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--color-neutral-400)', fontFamily: 'var(--font-mono)' }}>{t.deviceId}</p>
+                                        {t.deviceName && t.deviceName !== t.deviceId
+                                            ? <>
+                                                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-neutral-700)' }}>{t.deviceName}</p>
+                                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--color-neutral-400)', fontFamily: 'var(--font-mono)' }}>{t.deviceId}</p>
+                                            </>
+                                            : <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-neutral-700)', fontFamily: 'var(--font-mono)' }}>{t.deviceId}</p>
+                                        }
                                     </td>
                                     {/* Result */}
                                     <td style={s.td}>

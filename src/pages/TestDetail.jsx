@@ -102,40 +102,65 @@ export default function TestDetail() {
                 )}
             </div>
 
-            {/* Charts */}
-            <div className="card" style={{ marginBottom: '1.25rem' }}>
-                <p style={{ margin: '0 0 1.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Cycle Charts
-                </p>
-                <CycleChart measurements={measurements} />
-            </div>
+            {/* PASS — show charts and measurement table */}
+            {test.status === 'PASS' && measurements.length > 0 && (
+                <>
+                    <div className="card" style={{ marginBottom: '1.25rem' }}>
+                        <p style={{ margin: '0 0 1.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Cycle Charts
+                        </p>
+                        <CycleChart measurements={measurements} />
+                    </div>
 
-            {/* Per-cycle table */}
-            <div className="card" style={{ overflowX: 'auto' }}>
-                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Per-Cycle Breakdown ({measurements.length} cycles)
-                </p>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr>
-                            {['Cycle', 'Voltage (V)', 'Current (A)', 'Charge Time (ms)', 'Peak Voltage (V)'].map(h => (
-                                <th key={h} style={s.th}>{h}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {measurements.map(row => (
-                            <tr key={row.cycleNo}>
-                                <td style={s.tdMuted}>{row.cycleNo}</td>
-                                <td style={s.tdMono}>{row.voltage?.toFixed(3)}</td>
-                                <td style={s.tdMono}>{row.current?.toFixed(3)}</td>
-                                <td style={s.tdMono}>{row.chargeTime}</td>
-                                <td style={s.tdMono}>{row.peakVoltage?.toFixed(3) ?? '—'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                    <div className="card" style={{ overflowX: 'auto' }}>
+                        <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Per-Cycle Breakdown ({measurements.length} cycles)
+                        </p>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    {['Cycle', 'Voltage (V)', 'Current (A)', 'Charge Time (ms)', 'Peak Voltage (V)'].map(h => (
+                                        <th key={h} style={s.th}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {measurements.map(row => (
+                                    <tr key={row.cycleNo}>
+                                        <td style={s.tdMuted}>{row.cycleNo}</td>
+                                        <td style={s.tdMono}>{row.voltage?.toFixed(3)}</td>
+                                        <td style={s.tdMono}>{row.current?.toFixed(3)}</td>
+                                        <td style={s.tdMono}>{row.chargeTime}</td>
+                                        <td style={s.tdMono}>{row.peakVoltage?.toFixed(3) ?? '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
+
+            {/* FAIL — show simple message instead of charts */}
+            {test.status === 'FAIL' && (
+                <div className="card" style={{
+                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    padding: '1.25rem', border: '1px solid var(--color-fail-border)',
+                    background: 'var(--color-fail-bg)',
+                }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 24, height: 24, color: 'var(--color-fail-text)', flexShrink: 0 }}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div>
+                        <p style={{ margin: '0 0 0.25rem', fontWeight: 600, color: 'var(--color-fail-text)', fontSize: '0.9rem' }}>
+                            Test Failed
+                        </p>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-fail-text)', opacity: 0.8 }}>
+                            Measurement data is not available for failed tests.
+                        </p>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

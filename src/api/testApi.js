@@ -1,12 +1,14 @@
 import axios from 'axios';
 
 // ✅ Replace with your actual Spring Boot backend URL
-const BASE_URL = 'http://your-backend-url.com/api';
+const BASE_URL = 'https://honorifically-uncitied-aron.ngrok-free.dev/api';
+// const BASE_URL = 'http://honorifically-uncitied-aron.ngrok-free.dev/api';
+// const BASE_URL = 'http://localhost:8080/api';
 
 const api = axios.create({
     baseURL: BASE_URL,
     timeout: 15000,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
 });
 
 // ─── Devices ──────────────────────────────────────────────────────────────────
