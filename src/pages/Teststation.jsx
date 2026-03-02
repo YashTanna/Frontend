@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { startTest, getTestStatus, getRecentTests, getErrorMessage } from '../api/testApi';
+import { startTest, getTestStatus, getRecentTests, getDevices, getErrorMessage } from '../api/testApi';
 import PassFailBadge from '../components/PassFailBadge';
 
 const POLL_MS = 3000;
 
 // ── Serial helpers ────────────────────────────────────────────────────────────
 const getStoredSerial = (deviceId) => {
-    try { const v = localStorage.getItem(`sn_${deviceId}`); return v !== null ? parseInt(v, 10) : ''; }
-    catch { return ''; }
+    try {
+        const v = localStorage.getItem(`sn_${deviceId}`);
+        return v !== null ? parseInt(v, 10) : '';
+    } catch { return ''; }
 };
 const saveSerial = (deviceId, val) => {
     try { localStorage.setItem(`sn_${deviceId}`, String(val)); } catch { }
@@ -18,28 +20,15 @@ const incrementSerial = (val) => {
     return isNaN(n) ? val : n + 1;
 };
 
-// ── Small stat box ────────────────────────────────────────────────────────────
-const StatBox = ({ label, value, unit }) => (
-    <div style={{
-        flex: 1, background: 'var(--color-neutral-50)', borderRadius: '0.5rem',
-        padding: '0.75rem', textAlign: 'center', border: '1px solid var(--color-neutral-100)',
-    }}>
-        <p style={{ margin: '0 0 0.1rem', fontSize: '1.1rem', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--color-accent-600)' }}>
-            {value !== undefined && value !== null ? Number(value).toFixed(2) : '—'}
-        </p>
-        <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--color-neutral-400)' }}>{unit}</p>
-        <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--color-neutral-500)', marginTop: '0.1rem' }}>{label}</p>
-    </div>
-);
-
 // ── Recent test row ───────────────────────────────────────────────────────────
 const RecentRow = ({ test, onClick }) => (
-    <div onClick={onClick} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0.7rem 0.875rem', borderRadius: '0.5rem', cursor: 'pointer',
-        transition: 'background 0.15s',
-        borderBottom: '1px solid var(--color-neutral-100)',
-    }}
+    <div
+        onClick={onClick}
+        style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0.7rem 0.875rem', cursor: 'pointer', transition: 'background 0.15s',
+            borderBottom: '1px solid var(--color-neutral-100)',
+        }}
         onMouseEnter={e => e.currentTarget.style.background = 'var(--color-neutral-50)'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
@@ -65,56 +54,55 @@ const RecentRow = ({ test, onClick }) => (
 export default function TestStation() {
     const { deviceId } = useParams();
     const navigate = useNavigate();
-    const intervalRef = useRef(null);
+
+    // Use a ref to track if polling should keep going.
+    // When set to false the recursive loop stops immediately.
+    const pollingActive = useRef(false);
     const elapsedRef = useRef(null);
 
-    // Device info
     const [device, setDevice] = useState(null);
-
-    // Test state
-    const [status, setStatus] = useState('idle'); // idle | IN_PROGRESS | PASS | FAIL
+    const [status, setStatus] = useState('idle');
     const [testId, setTestId] = useState(null);
     const [result, setResult] = useState(null);
     const [apiError, setApiError] = useState(null);
+    const [starting, setStarting] = useState(false);
     const [elapsed, setElapsed] = useState(0);
 
-    // Serial
     const [serialNo, setSerialNo] = useState(() => getStoredSerial(deviceId));
     const [serialError, setSerialError] = useState('');
     const [testedSN, setTestedSN] = useState('');
 
-    // Recent tests
     const [recent, setRecent] = useState([]);
     const [recentLoad, setRecentLoad] = useState(true);
 
-    // ── Load device info and recent tests on mount ────────────────────────────
+    // ── On mount: load device info + recent tests ─────────────────────────────
     useEffect(() => {
-        // Try to get device info from devices list
-        import('../api/testApi').then(({ getDevices }) => {
-            getDevices().then(res => {
-                const found = res.data.find(d => d.deviceId === deviceId);
-                if (found) setDevice(found);
-                else setDevice({ deviceId, name: deviceId, status: 'IDLE' });
-            }).catch(() => setDevice({ deviceId, name: deviceId, status: 'IDLE' }));
-        });
+        getDevices()
+            .then(res => {
+                const found = (res.data || []).find(d => d.deviceId === deviceId);
+                setDevice(found || { deviceId, name: deviceId, status: 'IDLE' });
+            })
+            .catch(() => setDevice({ deviceId, name: deviceId, status: 'IDLE' }));
 
         fetchRecent();
-    }, [deviceId]);
 
-    const fetchRecent = () => {
-        setRecentLoad(true);
-        import('../api/testApi').then(({ getRecentTests }) => {
-            getRecentTests(deviceId)
-                .then(res => setRecent(res.data || []))
-                .catch(() => setRecent([]))
-                .finally(() => setRecentLoad(false));
-        });
-    };
+        // Stop any lingering polling if the user navigates away
+        return () => { pollingActive.current = false; };
+    }, [deviceId]);
 
     // ── Persist serial ────────────────────────────────────────────────────────
     useEffect(() => {
         if (serialNo !== '') saveSerial(deviceId, serialNo);
     }, [serialNo, deviceId]);
+
+    // ── Recent tests ──────────────────────────────────────────────────────────
+    const fetchRecent = () => {
+        setRecentLoad(true);
+        getRecentTests(deviceId)
+            .then(res => setRecent(res.data || []))
+            .catch(() => setRecent([]))
+            .finally(() => setRecentLoad(false));
+    };
 
     // ── Elapsed timer ─────────────────────────────────────────────────────────
     const startElapsed = () => {
@@ -126,75 +114,86 @@ export default function TestStation() {
     };
     const fmtElapsed = s => s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 
-    // ── Polling ───────────────────────────────────────────────────────────────
-    const stopPolling = () => {
-        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    };
+    // ── Polling — plain recursive setTimeout, no useEffect, no stale closures ─
+    // This is the simplest and most reliable approach:
+    // after each POLL_MS delay, call /status. If still running, schedule next call.
+    // If done or unmounted (pollingActive=false), stop.
+    const poll = (id) => {
+        if (!pollingActive.current) return; // unmounted or stopped
 
-    useEffect(() => {
-        if (!testId || status !== 'IN_PROGRESS') return;
+        setTimeout(async () => {
+            if (!pollingActive.current) return; // check again after delay
 
-        intervalRef.current = setInterval(async () => {
+            console.log('[Poll] calling /status/', id);
             try {
-                const res = await getTestStatus(testId);
+                const res = await getTestStatus(id);
                 const data = res.data;
+                console.log('[Poll] response status:', data.status);
+
+                if (!pollingActive.current) return; // component may have unmounted during await
+
                 if (data.status === 'PASS' || data.status === 'FAIL') {
+                    pollingActive.current = false;
+                    stopElapsed();
                     setResult(data.result);
                     setStatus(data.status);
-                    stopPolling();
-                    stopElapsed();
-                    // Auto-increment serial
                     setSerialNo(prev => {
                         const next = incrementSerial(prev);
                         saveSerial(deviceId, next);
                         return next;
                     });
-                    // Refresh recent tests
                     fetchRecent();
+                } else {
+                    // Still IN_PROGRESS — schedule next poll
+                    poll(id);
                 }
             } catch (err) {
+                console.error('[Poll] error:', err);
+                if (!pollingActive.current) return;
+                pollingActive.current = false;
+                stopElapsed();
                 setApiError(getErrorMessage(err));
                 setStatus('idle');
-                stopPolling();
-                stopElapsed();
             }
         }, POLL_MS);
-
-        return () => { stopPolling(); stopElapsed(); };
-    }, [testId, status]);
-
-    // ── Handlers ─────────────────────────────────────────────────────────────
-    const handleSerialChange = (e) => {
-        const v = e.target.value;
-        if (v === '' || /^\d+$/.test(v)) {
-            setSerialNo(v === '' ? '' : parseInt(v, 10));
-            if (v) setSerialError('');
-        }
     };
 
+    // ── Start test ────────────────────────────────────────────────────────────
     const handleStart = async () => {
         if (serialNo === '' || serialNo === null) {
             setSerialError('Serial number is required.');
             return;
         }
+
+        setSerialError('');
         setApiError(null);
         setResult(null);
         setTestedSN(serialNo);
-        setStatus('IN_PROGRESS');
-        startElapsed();
+        setStarting(true);
 
         try {
             const res = await startTest(deviceId, serialNo);
-            setTestId(res.data.testId);
+            const id = res.data.testId;
+            console.log('[Start] testId received:', id);
+
+            setTestId(id);
+            setStatus('IN_PROGRESS');
+            startElapsed();
+
+            // Start polling immediately
+            pollingActive.current = true;
+            poll(id);
         } catch (err) {
+            console.error('[Start] error:', err);
             setApiError(getErrorMessage(err));
-            setStatus('idle');
-            stopElapsed();
+        } finally {
+            setStarting(false);
         }
     };
 
+    // ── Reset ─────────────────────────────────────────────────────────────────
     const handleNewTest = () => {
-        stopPolling();
+        pollingActive.current = false;
         stopElapsed();
         setStatus('idle');
         setTestId(null);
@@ -211,7 +210,7 @@ export default function TestStation() {
     return (
         <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto' }} className="fade-in">
 
-            {/* Back button + header */}
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
                 <button
                     onClick={() => navigate('/dashboard')}
@@ -223,7 +222,6 @@ export default function TestStation() {
                     </svg>
                     Back
                 </button>
-
                 <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h1 style={{ margin: 0, fontSize: '1.375rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
@@ -242,22 +240,18 @@ export default function TestStation() {
             </div>
 
             {/* Two column layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
+            <div className="station-grid">
 
-                {/* ── LEFT — Test Control Panel ── */}
+                {/* ── LEFT: Test Control ── */}
                 <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <div>
-                        <p style={{ margin: '0 0 0.125rem', fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>
-                            Test Station
-                        </p>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-neutral-400)' }}>
-                            Enter serial number and start the test cycle.
-                        </p>
+                        <p style={{ margin: '0 0 0.125rem', fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>Test Station</p>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-neutral-400)' }}>Enter serial number and start the test cycle.</p>
                     </div>
 
-                    <div className="divider" style={{ margin: '0' }} />
+                    <div className="divider" style={{ margin: 0 }} />
 
-                    {/* Serial input — always visible but locked while running */}
+                    {/* Serial input */}
                     <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-neutral-600)', marginBottom: '0.4rem' }}>
                             PCB Serial Number
@@ -266,23 +260,29 @@ export default function TestStation() {
                             type="text"
                             inputMode="numeric"
                             value={serialNo === '' ? '' : String(serialNo)}
-                            onChange={handleSerialChange}
-                            disabled={isRunning}
+                            onChange={e => {
+                                const v = e.target.value;
+                                if (v === '' || /^\d+$/.test(v)) {
+                                    setSerialNo(v === '' ? '' : parseInt(v, 10));
+                                    if (v) setSerialError('');
+                                }
+                            }}
+                            disabled={isRunning || starting}
                             placeholder="e.g. 124"
                             className={`input-field${serialError ? ' error' : ''}`}
-                            style={{ opacity: isRunning ? 0.6 : 1 }}
+                            style={{ opacity: (isRunning || starting) ? 0.6 : 1 }}
                         />
                         {serialError && (
                             <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'var(--color-fail-text)' }}>{serialError}</p>
                         )}
-                        {!serialError && serialNo === '' && (
+                        {!serialError && serialNo === '' && !isRunning && (
                             <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>
                                 Auto-increments after each test.
                             </p>
                         )}
                     </div>
 
-                    {/* Status area */}
+                    {/* Running state */}
                     {isRunning && (
                         <div style={{
                             background: 'var(--color-running-bg)', border: '1px solid var(--color-running-border)',
@@ -294,7 +294,6 @@ export default function TestStation() {
                                     Testing S/N {testedSN}
                                 </span>
                             </div>
-                            {/* Indeterminate bar */}
                             <div style={{ background: 'var(--color-accent-100)', borderRadius: '999px', height: '4px', overflow: 'hidden', marginBottom: '0.5rem' }}>
                                 <div className="indeterminate-bar" />
                             </div>
@@ -305,7 +304,7 @@ export default function TestStation() {
                         </div>
                     )}
 
-                    {/* Result area */}
+                    {/* Result */}
                     {isDone && result && (
                         <div style={{
                             background: status === 'PASS' ? 'var(--color-pass-bg)' : 'var(--color-fail-bg)',
@@ -313,14 +312,12 @@ export default function TestStation() {
                             borderRadius: '0.625rem', padding: '1rem',
                             display: 'flex', flexDirection: 'column', gap: '0.625rem',
                         }}>
-                            {/* Badge + serial */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <PassFailBadge result={status} size="md" />
                                 <span style={{ fontSize: '0.78rem', color: 'var(--color-neutral-500)', fontFamily: 'var(--font-mono)' }}>
                                     S/N {testedSN}
                                 </span>
                             </div>
-                            {/* Total cycles */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--color-neutral-600)' }}>
                                 <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -330,18 +327,17 @@ export default function TestStation() {
                         </div>
                     )}
 
-                    {/* API error */}
+                    {/* Error */}
                     {apiError && (
                         <div style={{
                             background: 'var(--color-fail-bg)', border: '1px solid var(--color-fail-border)',
-                            borderRadius: '0.5rem', padding: '0.75rem',
-                            fontSize: '0.8rem', color: 'var(--color-fail-text)',
+                            borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.8rem', color: 'var(--color-fail-text)',
                         }}>
                             {apiError}
                         </div>
                     )}
 
-                    {/* Next serial preview after done */}
+                    {/* Next serial preview */}
                     {isDone && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -358,11 +354,21 @@ export default function TestStation() {
                         </div>
                     )}
 
-                    {/* Action buttons */}
+                    {/* Buttons */}
                     <div style={{ display: 'flex', gap: '0.625rem' }}>
                         {!isRunning && !isDone && (
-                            <button onClick={handleStart} disabled={serialNo === ''} className="btn-primary" style={{ flex: 1 }}>
-                                Start Test
+                            <button
+                                onClick={handleStart}
+                                disabled={serialNo === '' || starting}
+                                className="btn-primary"
+                                style={{ flex: 1 }}
+                            >
+                                {starting ? (
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                        <span className="spinner" style={{ width: 14, height: 14, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} />
+                                        Starting...
+                                    </span>
+                                ) : 'Start Test'}
                             </button>
                         )}
                         {isRunning && (
@@ -375,9 +381,7 @@ export default function TestStation() {
                         )}
                         {isDone && (
                             <>
-                                <button onClick={handleNewTest} className="btn-secondary" style={{ flex: 1 }}>
-                                    New Test
-                                </button>
+                                <button onClick={handleNewTest} className="btn-secondary" style={{ flex: 1 }}>New Test</button>
                                 {testId && (
                                     <button onClick={() => navigate(`/test/${testId}`)} className="btn-primary" style={{ flex: 1 }}>
                                         View Detail
@@ -388,15 +392,11 @@ export default function TestStation() {
                     </div>
                 </div>
 
-                {/* ── RIGHT — Recent Tests ── */}
+                {/* ── RIGHT: Recent Tests ── */}
                 <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <p style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>
-                            Recent Tests
-                        </p>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>
-                            Last 5 results
-                        </span>
+                        <p style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>Recent Tests</p>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>Last 5 results</span>
                     </div>
 
                     {recentLoad ? (
@@ -418,16 +418,11 @@ export default function TestStation() {
                     ) : (
                         <div style={{ flex: 1 }}>
                             {recent.map(test => (
-                                <RecentRow
-                                    key={test.id}
-                                    test={test}
-                                    onClick={() => navigate(`/test/${test.id}`)}
-                                />
+                                <RecentRow key={test.id} test={test} onClick={() => navigate(`/test/${test.id}`)} />
                             ))}
                         </div>
                     )}
 
-                    {/* Show more */}
                     <div style={{ paddingTop: '0.875rem', borderTop: '1px solid var(--color-neutral-100)', marginTop: '0.5rem' }}>
                         <button
                             onClick={() => navigate(`/history?deviceId=${deviceId}`)}

@@ -90,12 +90,12 @@ export default function Reports() {
             )}
 
             {/* Stat cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.875rem', marginBottom: '1.5rem' }}>
+            <div className="reports-stats-grid">
                 {loading ? [1, 2, 3, 4].map(i => (
                     <div key={i} className="card" style={{ height: '80px', background: 'var(--color-neutral-100)', animation: 'pulse 1.5s infinite' }} />
                 )) : stats.map(s => (
                     <div key={s.label} className="card" style={{ padding: '1rem' }}>
-                        <p style={{ margin: '0 0 0.25rem', fontSize: '1.75rem', fontWeight: 700, color: s.color, fontFamily: 'var(--font-mono)' }}>
+                        <p style={{ margin: '0 0 0.25rem', fontSize: '1.75rem', fontWeight: 700, color: s.color, fontFamily: 'var(--font-sans)' }}>
                             {s.value}
                         </p>
                         <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>{s.label}</p>
@@ -104,7 +104,7 @@ export default function Reports() {
             </div>
 
             {/* Charts row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem' }}>
+            <div className="reports-charts-grid">
 
                 {/* Bar chart */}
                 <div className="card">

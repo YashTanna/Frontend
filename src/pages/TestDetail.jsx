@@ -53,14 +53,14 @@ export default function TestDetail() {
         <div style={s.page} className="fade-in">
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
+            <div className="detail-header">
                 <button onClick={() => navigate(-1)} className="btn-secondary" style={{ padding: '0.4rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8rem' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
                     Back
                 </button>
-                <div style={{ flex: 1 }}>
+                <div className="detail-header-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h1 style={{ margin: 0, fontSize: '1.375rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>Test Detail</h1>
                         <PassFailBadge result={test.status === 'PASS' ? 'pass' : 'fail'} size="sm" />
@@ -72,14 +72,14 @@ export default function TestDetail() {
                     </p>
                 </div>
                 {test.createdAt && (
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-neutral-400)' }}>
+                    <span className="detail-header-date">
                         {new Date(test.createdAt).toLocaleString()}
                     </span>
                 )}
             </div>
 
             {/* Summary bar */}
-            <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '2rem', padding: '1rem 1.25rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+            <div className="card detail-summary-bar">
                 <div>
                     <p style={s.label}>Result</p>
                     <div style={{ marginTop: '0.25rem' }}><PassFailBadge result={test.status === 'PASS' ? 'pass' : 'fail'} size="md" /></div>
@@ -95,7 +95,7 @@ export default function TestDetail() {
                     </div>
                 )}
                 {test.createdAt && (
-                    <div style={{ marginLeft: 'auto' }}>
+                    <div style={{ marginLeft: 'auto', minWidth: 0 }}>
                         <p style={s.label}>Date</p>
                         <p style={{ ...s.value, fontFamily: 'var(--font-sans)', color: 'var(--color-neutral-600)' }}>{new Date(test.createdAt).toLocaleString()}</p>
                     </div>

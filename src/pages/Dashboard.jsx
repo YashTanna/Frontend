@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getDevices } from '../api/testApi';
-import DeviceSelectCard from '../components/Deviceselectcard';
+import DeviceSelectCard from '../components/DeviceSelectCard';
 
 const MOCK_DEVICES = [
     { deviceId: 'ESP32-001', name: 'Device 01 — Line A', status: 'IDLE' },
@@ -38,7 +38,7 @@ export default function Dashboard() {
 
             {/* Stats row */}
             {!loading && devices.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.875rem', marginBottom: '1.75rem' }}>
+                <div className="stats-grid">
                     {[
                         { label: 'Total Devices', value: devices.length, color: 'var(--color-neutral-800)' },
                         { label: 'Idle', value: idle, color: 'var(--color-neutral-500)' },
@@ -59,7 +59,7 @@ export default function Dashboard() {
             <p className="section-title">Devices</p>
 
             {loading ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+                <div className="device-grid">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="card" style={{ height: '160px', background: 'var(--color-neutral-100)', animation: 'pulse 1.5s infinite' }} />
                     ))}
