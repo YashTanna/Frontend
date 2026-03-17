@@ -8,7 +8,10 @@ export default defineConfig({
     react(),
   ],
   server: {
-    host: true,          // listen on all interfaces (0.0.0.0)
-    allowedHosts: 'all', // allow any external host including ngrok
+    host: true,
+    allowedHosts: 'all',
+  },
+  define: {
+    global: 'globalThis',   // fix sockjs-client "global is not defined" in Vite
   },
 })

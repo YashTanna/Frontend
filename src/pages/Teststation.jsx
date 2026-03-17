@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { startTest, getTestStatus, getRecentTests, getDevices, getErrorMessage } from '../api/testApi';
+import { startTest, getTestStatus, getRecentTests, getDevices, releaseDevice, getErrorMessage } from '../api/testApi';
 import PassFailBadge from '../components/PassFailBadge';
 
 const POLL_MS = 3000;
@@ -77,6 +77,11 @@ export default function TestStation() {
 
     // ── On mount: load device info + recent tests ─────────────────────────────
     useEffect(() => {
+        // mounted flag — guards against React StrictMode double-invoke
+        // In StrictMode, React mounts → cleanup → remounts in dev.
+        // Without this flag the cleanup would release the device immediately.
+        let mounted = true;
+
         getDevices()
             .then(res => {
                 const found = (res.data || []).find(d => d.deviceId === deviceId);
@@ -86,8 +91,27 @@ export default function TestStation() {
 
         fetchRecent();
 
-        // Stop any lingering polling if the user navigates away
-        return () => { pollingActive.current = false; };
+        // Release on tab close / refresh (desktop)
+        const handleUnload = () => { releaseDevice(deviceId); };
+        window.addEventListener('beforeunload', handleUnload);
+
+        // Release on page hide — catches mobile browser backgrounding + back gesture
+        const handlePageHide = () => { releaseDevice(deviceId); };
+        window.addEventListener('pagehide', handlePageHide);
+
+        // Release when React Router navigates away (back button, nav links)
+        return () => {
+            pollingActive.current = false;
+            window.removeEventListener('beforeunload', handleUnload);
+            window.removeEventListener('pagehide', handlePageHide);
+
+            // Only release if this was a real unmount, not StrictMode's fake one.
+            // mounted stays true for the real unmount; StrictMode sets it false first.
+            if (mounted) {
+                mounted = false;
+                releaseDevice(deviceId);
+            }
+        };
     }, [deviceId]);
 
     // ── Persist serial ────────────────────────────────────────────────────────
@@ -130,22 +154,29 @@ export default function TestStation() {
                 const data = res.data;
                 console.log('[Poll] response status:', data.status);
 
-                if (!pollingActive.current) return; // component may have unmounted during await
+                if (!pollingActive.current) return;
 
-                if (data.status === 'PASS' || data.status === 'FAIL') {
+                if (data.status === 'IN_PROGRESS') {
+                    // Still running — schedule next poll
+                    poll(id);
+                } else if (data.status === 'PASS') {
                     pollingActive.current = false;
                     stopElapsed();
                     setResult(data.result);
-                    setStatus(data.status);
+                    setStatus('PASS');
                     setSerialNo(prev => {
                         const next = incrementSerial(prev);
                         saveSerial(deviceId, next);
                         return next;
                     });
                     fetchRecent();
-                } else {
-                    // Still IN_PROGRESS — schedule next poll
-                    poll(id);
+                } else if (data.status === 'FAIL') {
+                    pollingActive.current = false;
+                    stopElapsed();
+                    setResult(null);
+                    setStatus('FAIL');
+                    // Serial stays the same — same PCB gets retested
+                    fetchRecent();
                 }
             } catch (err) {
                 console.error('[Poll] error:', err);
@@ -305,7 +336,7 @@ export default function TestStation() {
                     )}
 
                     {/* Result */}
-                    {isDone && result && (
+                    {isDone && (
                         <div style={{
                             background: status === 'PASS' ? 'var(--color-pass-bg)' : 'var(--color-fail-bg)',
                             border: `1px solid ${status === 'PASS' ? 'var(--color-pass-border)' : 'var(--color-fail-border)'}`,
@@ -318,12 +349,19 @@ export default function TestStation() {
                                     S/N {testedSN}
                                 </span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--color-neutral-600)' }}>
-                                <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                </svg>
-                                <span><strong>{result.totalCycles}</strong> cycles completed</span>
-                            </div>
+                            {status === 'PASS' && result?.totalCycles && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--color-neutral-600)' }}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                    </svg>
+                                    <span><strong>{result.totalCycles}</strong> cycles completed</span>
+                                </div>
+                            )}
+                            {status === 'FAIL' && (
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-fail-text)' }}>
+                                    PCB did not pass. Retest with the same serial number.
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -337,8 +375,8 @@ export default function TestStation() {
                         </div>
                     )}
 
-                    {/* Next serial preview */}
-                    {isDone && (
+                    {/* Next serial preview — only on PASS */}
+                    {isDone && status === 'PASS' && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem',
                             padding: '0.625rem 0.875rem', background: 'var(--color-neutral-50)',
