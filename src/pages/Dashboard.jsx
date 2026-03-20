@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getDevices } from '../api/testApi';
 import { useDeviceSocket } from '../hooks/Usedevicesocket';
+import { useNewDeviceSocket } from '../hooks/Usenewdevicesocket';
 import DeviceSelectCard from '../components/DeviceSelectCard';
 
 const MOCK_DEVICES = [
@@ -14,12 +15,18 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
 
     // ── WebSocket — real time device status updates ───────────────────────────
+    // Device status update — patches existing device card
     useDeviceSocket(useCallback((update) => {
         console.log('[Dashboard] WS device update:', update);
-        // Patch just the changed device in state immediately
         setDevices(prev => prev.map(d =>
             d.deviceId === update.deviceId ? { ...d, status: update.status } : d
         ));
+    }, []));
+
+    // New device registered — adds new card to the list
+    useNewDeviceSocket(useCallback((device) => {
+        console.log('[Dashboard] WS new device:', device);
+        setDevices(prev => [...prev, device]);
     }, []));
 
     useEffect(() => {

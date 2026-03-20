@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import logo from '../assets/logo.jpeg';
 
 const links = [
     {
@@ -54,18 +55,14 @@ export default function Navbar({ className = '', onClose }) {
             {/* Brand + close button on mobile */}
             <div style={{ padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid var(--color-neutral-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                    <div style={{
-                        width: 32, height: 32, borderRadius: '8px',
-                        background: 'var(--color-accent-600)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 16, height: 16, color: 'white' }} viewBox="0 0 24 24" fill="currentColor">
-                            <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
-                        </svg>
-                    </div>
+                    <img
+                        src={logo}
+                        alt="Atyantech Logo"
+                        style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }}
+                    />
                     <div>
-                        <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.2 }}>BoostTest</p>
-                        <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-neutral-400)', lineHeight: 1.2 }}>IoT Tester</p>
+                        <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-neutral-900)', lineHeight: 1.2 }}>Atyantech</p>
+                        <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--color-neutral-400)', lineHeight: 1.4 }}>Pvt. Ltd.</p>
                     </div>
                 </div>
                 {/* Close button — only visible on mobile via CSS */}
@@ -112,7 +109,7 @@ export default function Navbar({ className = '', onClose }) {
 
             {/* Footer */}
             <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--color-neutral-100)' }}>
-                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-neutral-400)' }}>ESP32 Boost Tester</p>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-neutral-400)' }}>Atyantech Pvt. Ltd.</p>
                 <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--color-neutral-300)', fontFamily: 'var(--font-mono)' }}>v1.0.0</p>
             </div>
         </aside>

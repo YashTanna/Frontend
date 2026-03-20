@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { startTest, getTestStatus, getRecentTests, getDevices, releaseDevice, getErrorMessage } from '../api/testApi';
+import { startTest, getRecentTests, getDevices, releaseDevice, getErrorMessage } from '../api/testApi';
+import { useDeviceSocket } from '../hooks/Usedevicesocket';
 import PassFailBadge from '../components/PassFailBadge';
-
-const POLL_MS = 3000;
 
 // ── Serial helpers ────────────────────────────────────────────────────────────
 const getStoredSerial = (deviceId) => {
@@ -55,9 +54,6 @@ export default function TestStation() {
     const { deviceId } = useParams();
     const navigate = useNavigate();
 
-    // Use a ref to track if polling should keep going.
-    // When set to false the recursive loop stops immediately.
-    const pollingActive = useRef(false);
     const elapsedRef = useRef(null);
 
     const [device, setDevice] = useState(null);
@@ -101,7 +97,6 @@ export default function TestStation() {
 
         // Release when React Router navigates away (back button, nav links)
         return () => {
-            pollingActive.current = false;
             window.removeEventListener('beforeunload', handleUnload);
             window.removeEventListener('pagehide', handlePageHide);
 
@@ -138,56 +133,32 @@ export default function TestStation() {
     };
     const fmtElapsed = s => s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 
-    // ── Polling — plain recursive setTimeout, no useEffect, no stale closures ─
-    // This is the simplest and most reliable approach:
-    // after each POLL_MS delay, call /status. If still running, schedule next call.
-    // If done or unmounted (pollingActive=false), stop.
-    const poll = (id) => {
-        if (!pollingActive.current) return; // unmounted or stopped
+    // ── WebSocket test result handler ────────────────────────────────────────
+    // Called by useDeviceSocket when backend pushes result to /topic/test/{testId}
+    const handleTestResult = useCallback((data) => {
+        console.log('[WS] Test result received:', data);
 
-        setTimeout(async () => {
-            if (!pollingActive.current) return; // check again after delay
+        if (data.status === 'PASS') {
+            stopElapsed();
+            setResult(data.result);
+            setStatus('PASS');
+            setSerialNo(prev => {
+                const next = incrementSerial(prev);
+                saveSerial(deviceId, next);
+                return next;
+            });
+            fetchRecent();
+        } else if (data.status === 'FAIL') {
+            stopElapsed();
+            setResult(null);
+            setStatus('FAIL');
+            // Serial stays same — same PCB gets retested
+            fetchRecent();
+        }
+    }, [deviceId]);
 
-            console.log('[Poll] calling /status/', id);
-            try {
-                const res = await getTestStatus(id);
-                const data = res.data;
-                console.log('[Poll] response status:', data.status);
-
-                if (!pollingActive.current) return;
-
-                if (data.status === 'IN_PROGRESS') {
-                    // Still running — schedule next poll
-                    poll(id);
-                } else if (data.status === 'PASS') {
-                    pollingActive.current = false;
-                    stopElapsed();
-                    setResult(data.result);
-                    setStatus('PASS');
-                    setSerialNo(prev => {
-                        const next = incrementSerial(prev);
-                        saveSerial(deviceId, next);
-                        return next;
-                    });
-                    fetchRecent();
-                } else if (data.status === 'FAIL') {
-                    pollingActive.current = false;
-                    stopElapsed();
-                    setResult(null);
-                    setStatus('FAIL');
-                    // Serial stays the same — same PCB gets retested
-                    fetchRecent();
-                }
-            } catch (err) {
-                console.error('[Poll] error:', err);
-                if (!pollingActive.current) return;
-                pollingActive.current = false;
-                stopElapsed();
-                setApiError(getErrorMessage(err));
-                setStatus('idle');
-            }
-        }, POLL_MS);
-    };
+    // ── WebSocket connection — device status + test result ───────────────────
+    useDeviceSocket(null, testId, handleTestResult);
 
     // ── Start test ────────────────────────────────────────────────────────────
     const handleStart = async () => {
@@ -204,16 +175,13 @@ export default function TestStation() {
 
         try {
             const res = await startTest(deviceId, serialNo);
-            const id = res.data.testId;
-            console.log('[Start] testId received:', id);
+            const id = res.data.id;
+            console.log('[Start] id received:', id);
 
-            setTestId(id);
+            setTestId(id);       // ← triggers useDeviceSocket to subscribe to /topic/test/{id}
             setStatus('IN_PROGRESS');
             startElapsed();
-
-            // Start polling immediately
-            pollingActive.current = true;
-            poll(id);
+            console.log('[WS] Waiting for test result on /topic/test/', id);
         } catch (err) {
             console.error('[Start] error:', err);
             setApiError(getErrorMessage(err));
@@ -224,7 +192,6 @@ export default function TestStation() {
 
     // ── Reset ─────────────────────────────────────────────────────────────────
     const handleNewTest = () => {
-        pollingActive.current = false;
         stopElapsed();
         setStatus('idle');
         setTestId(null);
@@ -349,12 +316,12 @@ export default function TestStation() {
                                     S/N {testedSN}
                                 </span>
                             </div>
-                            {status === 'PASS' && result?.totalCycles && (
+                            {status === 'PASS' && result?.totalCycle && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--color-neutral-600)' }}>
                                     <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 14, height: 14, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                                     </svg>
-                                    <span><strong>{result.totalCycles}</strong> cycles completed</span>
+                                    <span><strong>{result.totalCycle}</strong> cycles completed</span>
                                 </div>
                             )}
                             {status === 'FAIL' && (

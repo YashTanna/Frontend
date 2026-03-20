@@ -88,10 +88,10 @@ export default function TestDetail() {
                     <p style={s.label}>Serial No.</p>
                     <p style={{ ...s.value, fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>{test.serialNo}</p>
                 </div>
-                {test.totalCycles && (
+                {test.totalCycle && (
                     <div>
                         <p style={s.label}>Total Cycles</p>
-                        <p style={{ ...s.value, fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>{test.totalCycles}</p>
+                        <p style={{ ...s.value, fontSize: '1rem', fontWeight: 700, color: 'var(--color-neutral-800)' }}>{test.totalCycle}</p>
                     </div>
                 )}
                 {test.createdAt && (
